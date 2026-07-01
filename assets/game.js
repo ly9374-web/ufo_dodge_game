@@ -47,8 +47,8 @@
     basePlayerDrawSize: 50,
     // 手动调参：飞碟速度。数字越大飞碟越快，越小飞碟越慢。
     playerSpeed: 280,
-    // 手动调参：极难模式速度倍率。0.88 表示普通模式速度的 88%。
-    extremeSpeedMultiplier: 0.88,
+    // 手动调参：极难模式速度倍率。0.93 表示普通模式速度的 93%。
+    extremeSpeedMultiplier: 0.95,
     baseEnemyRadius: 12,
     baseShieldRadius: 22,
     baseRayBeamLength: 140,
