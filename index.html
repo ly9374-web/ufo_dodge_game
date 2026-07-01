@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ly的测试游戏 - Web</title>
+    <link rel="stylesheet" href="assets/styles.css">
+    <script src="assets/game.js" defer></script>
+  </head>
+  <body>
+    <main class="game-shell" aria-label="ly的测试游戏">
+      <canvas id="gameCanvas"></canvas>
+
+      <div class="hud hud-top is-hidden" id="gameHud">
+        <div class="hud-hearts" id="heartsText">❤️❤️❤️</div>
+        <div class="hud-status" id="statusText">存活 0.0s</div>
+      </div>
+      <div class="record-delta is-hidden" id="recordDeltaText"></div>
+
+      <div class="corner-menu">
+        <button class="icon-button" id="difficultyButton" type="button" aria-label="难度设置">☰</button>
+        <div class="difficulty-panel is-hidden" id="difficultyPanel">
+          <button class="difficulty-option" data-difficulty="hard" type="button">困难</button>
+          <button class="difficulty-option" data-difficulty="normal" type="button">普通</button>
+          <button class="difficulty-option" data-difficulty="chill" type="button">悠闲</button>
+        </div>
+      </div>
+
+      <section class="home-screen" id="homeScreen" aria-label="开始界面">
+        <h1>ly的测试游戏</h1>
+        <div class="home-actions">
+          <div class="home-row">
+            <button class="secondary-button" id="leaderboardButton" type="button">排行榜</button>
+            <button class="primary-button" id="startButton" type="button">开始</button>
+          </div>
+          <button class="danger-button" id="extremeButton" type="button">极难模式</button>
+        </div>
+      </section>
+
+      <button class="clear-entry-button" id="clearEntryButton" type="button" aria-label="清除记录">×</button>
+
+      <div class="stamina-shell is-hidden" id="staminaHud">
+        <div class="stamina-fill" id="staminaFill"></div>
+      </div>
+
+      <div class="flash-screen" id="flashScreen"></div>
+
+      <section class="modal-backdrop is-hidden" id="tutorialModal" aria-label="操作提示">
+        <div class="modal-panel tutorial-panel">
+          <p class="tutorial-message" id="tutorialMessage"></p>
+          <p class="tutorial-hint">点击任意键开始游戏</p>
+        </div>
+      </section>
+
+      <section class="modal-backdrop is-hidden" id="orientationModal" aria-label="横屏提示">
+        <div class="modal-panel tutorial-panel">
+          <p class="tutorial-message">请横屏</p>
+          <p class="tutorial-hint">横屏后自动进入极难模式</p>
+        </div>
+      </section>
+
+      <section class="modal-backdrop is-hidden" id="leaderboardModal" aria-label="排行榜">
+        <div class="modal-panel">
+          <div class="modal-header">
+            <h2 id="leaderboardTitle">排行榜</h2>
+            <button class="close-button" id="closeLeaderboardButton" type="button" aria-label="关闭">×</button>
+          </div>
+          <div class="leaderboard-list" id="leaderboardList"></div>
+        </div>
+      </section>
+
+      <section class="modal-backdrop is-hidden" id="clearModal" aria-label="清除记录">
+        <div class="modal-panel compact-panel">
+          <div class="modal-header">
+            <h2 id="clearModalTitle">清除记录</h2>
+            <button class="close-button" id="closeClearButton" type="button" aria-label="关闭">×</button>
+          </div>
+          <div class="clear-form" id="clearForm">
+            <input class="password-input" id="clearPasswordInput" type="password" placeholder="密码" autocomplete="off">
+            <button class="confirm-button" id="confirmClearButton" type="button">清除</button>
+          </div>
+          <div class="clear-message is-hidden" id="clearMessage"></div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
