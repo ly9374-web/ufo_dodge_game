@@ -585,7 +585,7 @@
     if (gameState !== "playing" && gameState !== "tutorial") return [];
     const { width, height } = viewportSize();
     const controlWidth = width / 2;
-    const controlHeight = height * 0.2;
+    const controlHeight = controlWidth;
     const controlY = height - controlHeight;
 
     if (gameMode === "normal") {

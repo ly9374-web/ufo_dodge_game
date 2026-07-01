@@ -91,7 +91,7 @@ def main() -> None:
             display: block;
             width: 100%;
             height: 100dvh !important;
-            min-height: 720px;
+            min-height: 0;
             border: 0;
           }
         </style>
@@ -99,7 +99,7 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    components.html(build_game_html(), height=900, scrolling=False)
+    components.html(build_game_html(), height=1, scrolling=False)
 
 
 if __name__ == "__main__":
