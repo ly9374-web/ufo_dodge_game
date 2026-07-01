@@ -226,12 +226,16 @@
   }
 
   function resetPlayerPositions(width, height) {
-    player.x = width / 2;
-    player.y = height / 2;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const extremeStartGap = Math.max(playerRadius() * 6, Math.min(width * 0.18, 160));
+
+    player.x = gameMode === "extreme" ? centerX - extremeStartGap : centerX;
+    player.y = centerY;
     player.directionX = 0;
     player.directionY = 0;
-    playerTwo.x = width / 2 + playerRadius() * 3;
-    playerTwo.y = height / 2;
+    playerTwo.x = gameMode === "extreme" ? centerX + extremeStartGap : centerX + playerRadius() * 3;
+    playerTwo.y = centerY;
     playerTwo.directionX = 0;
     playerTwo.directionY = 0;
   }
