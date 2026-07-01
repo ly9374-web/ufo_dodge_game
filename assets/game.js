@@ -3,7 +3,6 @@
 
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
-  const gameShell = document.querySelector(".game-shell");
   const homeScreen = document.getElementById("homeScreen");
   const gameHud = document.getElementById("gameHud");
   const heartsText = document.getElementById("heartsText");
@@ -33,14 +32,11 @@
   const tutorialModal = document.getElementById("tutorialModal");
   const tutorialMessage = document.getElementById("tutorialMessage");
   const orientationModal = document.getElementById("orientationModal");
-  const cornerMenu = document.querySelector(".corner-menu");
 
   const assets = {
     player: loadImage("assets/player.png"),
     player2: loadImage("assets/player2.png")
   };
-  const starCanvas = document.createElement("canvas");
-  const starCtx = starCanvas.getContext("2d");
 
   const constants = {
     leaderboardStorageKey: "leaderboard.v1.web",
@@ -50,7 +46,7 @@
     basePlayerRadius: 10,
     basePlayerDrawSize: 50,
     // 手动调参：飞碟速度。数字越大飞碟越快，越小飞碟越慢。
-    playerSpeed: 330,
+    playerSpeed: 280,
     baseEnemyRadius: 12,
     baseShieldRadius: 22,
     baseRayBeamLength: 140,
@@ -62,15 +58,15 @@
     baseEnemyExpireParticleMinSize: 1.5,
     baseEnemyExpireParticleMaxSize: 3,
     // 手动调参：陨石速度。数字越大陨石越快，越小陨石越慢。
-    enemySpeed: 285,
+    enemySpeed: 235,
     enemyLifeDuration: 15,
     // 手动调参：普通模式按住加速时的飞碟速度。
-    playerBoostSpeed: 520,
+    playerBoostSpeed: 420,
     staminaMax: 0.5,
     staminaRecoveryDuration: 5,
     // 手动调参：困难普通模式陨石生成间隔。数字越大陨石越少，越小陨石越密。
-    hardEnemyMinInterval: 0.85,
-    hardEnemyMaxInterval: 0.95,
+    hardEnemyMinInterval: 0.65,
+    hardEnemyMaxInterval: 0.85,
     // 手动调参：困难极难模式陨石生成间隔。数字越大陨石越少，越小陨石越密。
     hardExtremeEnemyMinInterval: 1.5,
     hardExtremeEnemyMaxInterval: 1.65,
@@ -207,28 +203,10 @@
     return image;
   }
 
-  function viewportSize() {
-    const visualViewport = window.visualViewport;
-    const width = Math.max(320, Math.floor(visualViewport ? visualViewport.width : window.innerWidth));
-    const height = Math.max(180, Math.floor(visualViewport ? visualViewport.height : window.innerHeight));
-    return { width, height };
-  }
-
-  function syncViewportClass() {
-    const { width, height } = viewportSize();
-    const isLandscape = width > height;
-    document.documentElement.classList.toggle("is-landscape", isLandscape);
-    document.documentElement.classList.toggle("is-portrait", !isLandscape);
-    if (gameShell) {
-      gameShell.style.width = `${width}px`;
-      gameShell.style.height = `${height}px`;
-    }
-  }
-
   function resizeCanvas() {
-    syncViewportClass();
     const dpr = Math.min(constants.maxCanvasDpr, Math.max(1, window.devicePixelRatio || 1));
-    const { width, height } = viewportSize();
+    const width = Math.max(320, window.innerWidth);
+    const height = Math.max(320, window.innerHeight);
 
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
@@ -259,32 +237,21 @@
   }
 
   function makeStars(width, height) {
-    const count = Math.max(24, Math.floor((width * height) / 18000));
+    const count = Math.max(40, Math.floor((width * height) / 12000));
     stars = Array.from({ length: count }, () => ({
       x: random(0, width),
       y: random(0, height),
       radius: random(0.6, 1.6),
-      baseOpacity: random(0.22, 0.7)
+      baseOpacity: random(0.2, 0.6),
+      twinkleSpeed: random(0.6, 1.4),
+      phase: random(0, Math.PI * 2)
     }));
-    renderStarCanvas(width, height);
-  }
-
-  function renderStarCanvas(width, height) {
-    starCanvas.width = width;
-    starCanvas.height = height;
-    starCtx.clearRect(0, 0, width, height);
-    for (const star of stars) {
-      starCtx.beginPath();
-      starCtx.fillStyle = `rgba(255, 255, 255, ${star.baseOpacity})`;
-      starCtx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-      starCtx.fill();
-    }
   }
 
   function startGame(mode, options = {}) {
     const preservePlayerPositions = Boolean(options.preservePlayerPositions);
-    const preserveTouchControls = Boolean(options.preserveTouchControls);
-    const { width, height } = viewportSize();
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
     closeLeaderboard();
     closeClearModal();
@@ -307,9 +274,7 @@
     activeRays = [];
     particles = [];
     pressedKeys.clear();
-    if (!preserveTouchControls) {
-      resetTouchControls();
-    }
+    resetTouchControls();
     didSpawnInitialEnemies = false;
     if (!preservePlayerPositions) {
       resetPlayerPositions(width, height);
@@ -344,10 +309,6 @@
     homeScreen.classList.toggle("is-hidden", isPlayingView);
     gameHud.classList.toggle("is-hidden", gameState === "home" || gameState === "tutorial");
     clearEntryButton.classList.toggle("is-hidden", isPlayingView);
-    cornerMenu.classList.toggle("is-hidden", gameState !== "home");
-    if (gameState !== "home") {
-      difficultyPanel.classList.add("is-hidden");
-    }
     heartsText.textContent = "❤️".repeat(Math.max(0, lives));
     statusText.textContent = `存活 ${elapsedTime.toFixed(1)}s`;
     staminaHud.classList.toggle("is-hidden", !(gameState === "playing" && gameMode === "normal"));
@@ -411,6 +372,7 @@
   }
 
   function update(dt) {
+    updateStars(dt);
     updateParticles(dt);
 
     if (flashRemaining > 0) {
@@ -551,9 +513,8 @@
 
   function constrainPlayerToGameArea(target) {
     const radius = playerRadius();
-    const { width, height } = viewportSize();
-    target.x = clamp(target.x, radius, width - radius);
-    target.y = clamp(target.y, radius, height - radius);
+    target.x = clamp(target.x, radius, window.innerWidth - radius);
+    target.y = clamp(target.y, radius, window.innerHeight - radius);
 
     for (const blockedArea of joystickAreas()) {
       constrainPlayerOutsideRect(target, radius, blockedArea);
@@ -583,9 +544,10 @@
 
   function joystickAreas() {
     if (gameState !== "playing" && gameState !== "tutorial") return [];
-    const { width, height } = viewportSize();
+    const width = window.innerWidth;
+    const height = window.innerHeight;
     const controlWidth = width / 2;
-    const controlHeight = controlWidth;
+    const controlHeight = height * 0.2;
     const controlY = height - controlHeight;
 
     if (gameMode === "normal") {
@@ -622,9 +584,14 @@
     return [];
   }
 
+  function updateStars(dt) {
+    for (const star of stars) {
+      star.phase += dt * star.twinkleSpeed;
+    }
+  }
+
   function updateEnemies(dt) {
     const turnLimit = 0.02 * (dt * 60);
-    const { width, height } = viewportSize();
     enemies = enemies.filter((enemy) => {
       enemy.lifeRemaining -= dt;
       if (enemy.lifeRemaining <= 0) {
@@ -646,8 +613,8 @@
       return (
         enemy.x >= -50 &&
         enemy.y >= -50 &&
-        enemy.x <= width + 50 &&
-        enemy.y <= height + 50
+        enemy.x <= window.innerWidth + 50 &&
+        enemy.y <= window.innerHeight + 50
       );
     });
   }
@@ -681,8 +648,7 @@
 
   function spawnEnemiesIfNeeded() {
     if (elapsedTime < nextSpawnTime) return;
-    const { width, height } = viewportSize();
-    enemies.push(makeEnemy(width, height));
+    enemies.push(makeEnemy(window.innerWidth, window.innerHeight));
     nextSpawnTime = elapsedTime + nextSpawnInterval(elapsedTime);
   }
 
@@ -775,13 +741,12 @@
       gameState === "playing" &&
       elapsedTime >= nextRayTime &&
       elapsedTime >= rayStartTime &&
-      viewportSize().width > 0 &&
-      viewportSize().height > 0
+      window.innerWidth > 0 &&
+      window.innerHeight > 0
     ) {
       const rayCount = difficulty === "chill" ? 2 : Math.min(3, Math.max(1, Math.floor(elapsedTime / 10)));
-      const { width, height } = viewportSize();
       for (let index = 0; index < rayCount; index += 1) {
-        activeRays.push(makeRay(width, height));
+        activeRays.push(makeRay(window.innerWidth, window.innerHeight));
       }
       nextRayTime = elapsedTime + nextRayInterval(elapsedTime);
     }
@@ -1254,7 +1219,8 @@
   }
 
   function showTutorial(mode) {
-    const { width, height } = viewportSize();
+    const width = window.innerWidth;
+    const height = window.innerHeight;
     if (mode === "normal") {
       hasSeenNormalHint = true;
     } else if (mode === "extreme") {
@@ -1337,7 +1303,7 @@
     tutorialProgress = null;
     hideTutorial();
     pressedKeys.clear();
-    startGame(mode, { preservePlayerPositions: true, preserveTouchControls: true });
+    startGame(mode, { preservePlayerPositions: true });
   }
 
   function beginModeAfterPrompts(mode) {
@@ -1379,8 +1345,7 @@
   }
 
   function shouldWaitForLandscape() {
-    const { width, height } = viewportSize();
-    return isLikelyTouchDevice() && height > width;
+    return isLikelyTouchDevice() && window.innerHeight > window.innerWidth;
   }
 
   function isLikelyTouchDevice() {
@@ -1456,7 +1421,8 @@
   }
 
   function draw() {
-    const { width, height } = viewportSize();
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = "#000";
@@ -1476,21 +1442,26 @@
   }
 
   function drawStars() {
-    if (starCanvas.width > 0 && starCanvas.height > 0) {
-      ctx.drawImage(starCanvas, 0, 0);
+    for (const star of stars) {
+      const shimmer = (Math.sin(star.phase) + 1) * 0.5;
+      const opacity = clamp(star.baseOpacity + shimmer * 0.4, 0, 1);
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+      ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
   function drawParticles() {
-    ctx.save();
     for (const particle of particles) {
+      ctx.save();
       ctx.globalAlpha = particle.opacity;
       ctx.fillStyle = particle.color;
       ctx.beginPath();
       ctx.arc(particle.x, particle.y, particle.size / 2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
-    ctx.restore();
   }
 
   function drawEnemies() {
@@ -1588,11 +1559,27 @@
       const craterX = enemy.x + crater.x * enemyRadius();
       const craterY = enemy.y + crater.y * enemyRadius();
       const craterRadius = enemyRadius() * crater.radius;
+      const gradient = ctx.createRadialGradient(
+        craterX,
+        craterY,
+        0,
+        craterX,
+        craterY,
+        craterRadius * 1.2
+      );
+      gradient.addColorStop(0, `rgba(0, 0, 0, ${0.6 + crater.depth})`);
+      gradient.addColorStop(1, "rgba(0, 0, 0, 0.9)");
 
-      ctx.fillStyle = `rgba(0, 0, 0, ${0.55 + crater.depth})`;
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+      ctx.shadowBlur = scaledSize(2);
+      ctx.shadowOffsetX = scaledSize(0.5);
+      ctx.shadowOffsetY = scaledSize(0.8);
+      ctx.fillStyle = gradient;
       ctx.beginPath();
       ctx.arc(craterX, craterY, craterRadius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
 
       ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
       ctx.lineWidth = Math.max(0.75, scaledSize(1));
@@ -1993,10 +1980,6 @@
   });
   window.addEventListener("resize", onViewportChange);
   window.addEventListener("orientationchange", onViewportChange);
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", onViewportChange);
-    window.visualViewport.addEventListener("scroll", onViewportChange);
-  }
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("pointerdown", onPointerDown, { passive: false });
