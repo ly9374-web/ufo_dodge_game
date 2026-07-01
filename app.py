@@ -87,10 +87,14 @@ def main() -> None:
             padding: 0;
           }
 
+          :root {
+            --browser-ui-reserve: 72px;
+          }
+
           iframe {
             display: block;
             width: 100%;
-            height: 100dvh !important;
+            height: calc(100dvh - var(--browser-ui-reserve)) !important;
             min-height: 0;
             border: 0;
           }

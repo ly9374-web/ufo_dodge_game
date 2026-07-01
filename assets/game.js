@@ -47,6 +47,8 @@
     basePlayerDrawSize: 50,
     // 手动调参：飞碟速度。数字越大飞碟越快，越小飞碟越慢。
     playerSpeed: 280,
+    // 手动调参：极难模式速度倍率。0.88 表示普通模式速度的 88%。
+    extremeSpeedMultiplier: 0.88,
     baseEnemyRadius: 12,
     baseShieldRadius: 22,
     baseRayBeamLength: 140,
@@ -248,6 +250,7 @@
 
   function startGame(mode, options = {}) {
     const preservePlayerPositions = Boolean(options.preservePlayerPositions);
+    const preserveTouchControls = Boolean(options.preserveTouchControls);
     const width = window.innerWidth;
     const height = window.innerHeight;
 
@@ -271,8 +274,10 @@
     enemies = [];
     activeRays = [];
     particles = [];
-    pressedKeys.clear();
-    resetTouchControls();
+    if (!preserveTouchControls) {
+      pressedKeys.clear();
+      resetTouchControls();
+    }
     didSpawnInitialEnemies = false;
     if (!preservePlayerPositions) {
       resetPlayerPositions(width, height);
@@ -439,7 +444,7 @@
     updatePlayerPosition(
       player,
       primaryDirection,
-      isBoosting ? constants.playerBoostSpeed : constants.playerSpeed,
+      isBoosting ? constants.playerBoostSpeed : playerSpeedForMode(),
       "rgba(255, 255, 255, 0.9)",
       dt
     );
@@ -449,10 +454,22 @@
     updatePlayerPosition(
       playerTwo,
       movementDirection("secondary"),
-      constants.playerSpeed,
+      playerSpeedForMode(),
       "rgba(0, 255, 255, 0.9)",
       dt
     );
+  }
+
+  function speedMultiplierForMode() {
+    return gameMode === "extreme" ? constants.extremeSpeedMultiplier : 1;
+  }
+
+  function playerSpeedForMode() {
+    return constants.playerSpeed * speedMultiplierForMode();
+  }
+
+  function enemySpeedForMode() {
+    return constants.enemySpeed * speedMultiplierForMode();
   }
 
   function updateStamina(dt, isBoosting) {
@@ -583,8 +600,9 @@
       const targetAngle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
       const deltaAngle = normalizeAngle(targetAngle - enemy.angle);
       enemy.angle += clamp(deltaAngle, -turnLimit, turnLimit);
-      enemy.x += Math.cos(enemy.angle) * constants.enemySpeed * dt;
-      enemy.y += Math.sin(enemy.angle) * constants.enemySpeed * dt;
+      const enemySpeed = enemySpeedForMode();
+      enemy.x += Math.cos(enemy.angle) * enemySpeed * dt;
+      enemy.y += Math.sin(enemy.angle) * enemySpeed * dt;
 
       if (Math.random() < constants.enemyTrailParticleChance) {
         emitParticles(enemy.x, enemy.y, enemy.color, 1);
@@ -1276,8 +1294,7 @@
     pendingTutorialMode = "";
     tutorialProgress = null;
     hideTutorial();
-    pressedKeys.clear();
-    startGame(mode, { preservePlayerPositions: true });
+    startGame(mode, { preservePlayerPositions: true, preserveTouchControls: true });
   }
 
   function beginModeAfterPrompts(mode) {
