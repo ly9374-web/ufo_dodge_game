@@ -547,7 +547,7 @@
     const width = window.innerWidth;
     const height = window.innerHeight;
     const controlWidth = width / 2;
-    const controlHeight = height * 0.2;
+    const controlHeight = 1.2 * controlWidth;
     const controlY = height - controlHeight;
 
     if (gameMode === "normal") {
@@ -563,20 +563,23 @@
     }
 
     if (gameMode === "extreme") {
+      const extremeControlWidth = width / 5;
+      const extremeControlHeight = 1.2 * extremeControlWidth;
+      const extremeControlY = height - extremeControlHeight;
       return [
         {
           id: "primary",
           x: 0,
-          y: controlY,
-          width: controlWidth,
-          height: controlHeight
+          y: extremeControlY,
+          width: extremeControlWidth,
+          height: extremeControlHeight
         },
         {
           id: "secondary",
-          x: width - controlWidth,
-          y: controlY,
-          width: controlWidth,
-          height: controlHeight
+          x: width - extremeControlWidth,
+          y: extremeControlY,
+          width: extremeControlWidth,
+          height: extremeControlHeight
         }
       ];
     }
