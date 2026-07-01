@@ -187,12 +187,10 @@
   let hasPlayedOnce = false;
   let didPlacePlayer = false;
   let didSpawnInitialEnemies = false;
-  let difficulty = "hard";
+  let difficulty = "normal";
   let leaderboard = loadLeaderboard();
   let editingEntryId = "";
   let hasRecordedThisGame = false;
-  let hasSeenNormalHint = false;
-  let hasSeenExtremeHint = false;
   let pendingTutorialMode = "";
   let pendingLandscapeStartMode = "";
   let tutorialProgress = null;
@@ -309,6 +307,10 @@
     homeScreen.classList.toggle("is-hidden", isPlayingView);
     gameHud.classList.toggle("is-hidden", gameState === "home" || gameState === "tutorial");
     clearEntryButton.classList.toggle("is-hidden", isPlayingView);
+    difficultyButton.classList.toggle("is-hidden", gameState !== "home");
+    if (gameState !== "home") {
+      difficultyPanel.classList.add("is-hidden");
+    }
     heartsText.textContent = "❤️".repeat(Math.max(0, lives));
     statusText.textContent = `存活 ${elapsedTime.toFixed(1)}s`;
     staminaHud.classList.toggle("is-hidden", !(gameState === "playing" && gameMode === "normal"));
@@ -515,31 +517,6 @@
     const radius = playerRadius();
     target.x = clamp(target.x, radius, window.innerWidth - radius);
     target.y = clamp(target.y, radius, window.innerHeight - radius);
-
-    for (const blockedArea of joystickAreas()) {
-      constrainPlayerOutsideRect(target, radius, blockedArea);
-    }
-  }
-
-  function constrainPlayerOutsideRect(target, radius, blockedArea) {
-    const overlapsJoystick =
-      target.x + radius > blockedArea.x &&
-      target.x - radius < blockedArea.x + blockedArea.width &&
-      target.y + radius > blockedArea.y &&
-      target.y - radius < blockedArea.y + blockedArea.height;
-
-    if (!overlapsJoystick) return;
-
-    const leftLimit = blockedArea.x - radius;
-    const topLimit = blockedArea.y - radius;
-    const leftCorrection = Math.max(0, target.x - leftLimit);
-    const topCorrection = Math.max(0, target.y - topLimit);
-
-    if (leftCorrection <= topCorrection) {
-      target.x = leftLimit;
-    } else {
-      target.y = topLimit;
-    }
   }
 
   function joystickAreas() {
@@ -1211,7 +1188,7 @@
   }
 
   function shouldShowTutorial(mode) {
-    return (mode === "normal" && !hasSeenNormalHint) || (mode === "extreme" && !hasSeenExtremeHint);
+    return mode === "normal" || mode === "extreme";
   }
 
   function tutorialMessageForMode(mode) {
@@ -1224,12 +1201,6 @@
   function showTutorial(mode) {
     const width = window.innerWidth;
     const height = window.innerHeight;
-    if (mode === "normal") {
-      hasSeenNormalHint = true;
-    } else if (mode === "extreme") {
-      hasSeenExtremeHint = true;
-    }
-
     gameMode = mode;
     gameState = "tutorial";
     lives = gameMode === "normal" ? 3 : 6;
@@ -1756,19 +1727,6 @@
     const accent = area.id === "secondary" ? "rgba(0, 255, 255, " : "rgba(255, 255, 255, ";
 
     ctx.save();
-    ctx.fillStyle = area.id === "secondary" ? "rgba(0, 255, 255, 0.08)" : "rgba(255, 255, 255, 0.1)";
-    ctx.fillRect(area.x, area.y, area.width, area.height);
-    ctx.strokeStyle = area.id === "secondary" ? "rgba(0, 255, 255, 0.24)" : "rgba(255, 255, 255, 0.22)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(area.x, area.y);
-    ctx.lineTo(area.x + area.width, area.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(area.x, area.y);
-    ctx.lineTo(area.x, area.y + area.height);
-    ctx.stroke();
-
     ctx.fillStyle = `${accent}0.12)`;
     ctx.strokeStyle = `${accent}0.28)`;
     ctx.lineWidth = 2;
