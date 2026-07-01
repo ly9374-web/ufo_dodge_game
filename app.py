@@ -90,7 +90,7 @@ def main() -> None:
           iframe {
             display: block;
             width: 100%;
-            height: 100svh !important;
+            height: calc(100svh - 8px) !important;
             min-height: 0;
             border: 0;
           }
