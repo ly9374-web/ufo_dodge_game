@@ -45,7 +45,8 @@
     mobileSizeScale: 0.72,
     basePlayerRadius: 10,
     basePlayerDrawSize: 50,
-    playerSpeed: 360,
+    // 手动调参：飞碟速度。数字越大飞碟越快，越小飞碟越慢。
+    playerSpeed: 330,
     baseEnemyRadius: 12,
     baseShieldRadius: 22,
     baseRayBeamLength: 140,
@@ -56,17 +57,27 @@
     baseParticleMaxSize: 4,
     baseEnemyExpireParticleMinSize: 1.5,
     baseEnemyExpireParticleMaxSize: 3,
-    enemySpeed: 320,
+    // 手动调参：陨石速度。数字越大陨石越快，越小陨石越慢。
+    enemySpeed: 285,
     enemyLifeDuration: 15,
-    playerBoostSpeed: 560,
+    // 手动调参：普通模式按住加速时的飞碟速度。
+    playerBoostSpeed: 520,
     staminaMax: 0.5,
     staminaRecoveryDuration: 5,
-    hardEnemyMinInterval: 0.7,
-    hardEnemyMaxInterval: 0.8,
+    // 手动调参：困难普通模式陨石生成间隔。数字越大陨石越少，越小陨石越密。
+    hardEnemyMinInterval: 0.85,
+    hardEnemyMaxInterval: 0.95,
+    // 手动调参：困难极难模式陨石生成间隔。数字越大陨石越少，越小陨石越密。
     hardExtremeEnemyMinInterval: 1.5,
     hardExtremeEnemyMaxInterval: 1.65,
+    // 手动调参：悠闲模式陨石生成间隔。数字越大陨石越少，越小陨石越密。
     chillEnemyInterval: 0.8,
     chillExtremeEnemyInterval: 1.6,
+    // 手动调参：开局陨石数量。数字越大开局陨石越多，越小越少。
+    initialEnemyCount: 5,
+    maxParticles: 220,
+    enemyTrailParticleChance: 0.45,
+    enemyExpireParticleCount: 28,
     hardNormalRayInterval: 2.5,
     hardExtremeRayInterval: 3.5,
     joystickMaxDistance: 54,
@@ -184,6 +195,7 @@
   let hasSeenExtremeHint = false;
   let pendingTutorialMode = "";
   let pendingLandscapeStartMode = "";
+  let tutorialProgress = null;
 
   function loadImage(src) {
     const image = new Image();
@@ -236,12 +248,14 @@
     }));
   }
 
-  function startGame(mode) {
+  function startGame(mode, options = {}) {
+    const preservePlayerPositions = Boolean(options.preservePlayerPositions);
     const width = window.innerWidth;
     const height = window.innerHeight;
 
     closeLeaderboard();
     closeClearModal();
+    hideTutorial();
     hideOrientationPrompt();
     difficultyPanel.classList.add("is-hidden");
     gameMode = mode;
@@ -262,7 +276,9 @@
     pressedKeys.clear();
     resetTouchControls();
     didSpawnInitialEnemies = false;
-    resetPlayerPositions(width, height);
+    if (!preservePlayerPositions) {
+      resetPlayerPositions(width, height);
+    }
     constrainPlayerToGameArea(player);
     constrainPlayerToGameArea(playerTwo);
     ensureInitialEnemies(width, height);
@@ -278,7 +294,10 @@
     resetTouchControls();
     flashRemaining = 0;
     returnHomeRemaining = 0;
+    pendingTutorialMode = "";
+    tutorialProgress = null;
     pendingLandscapeStartMode = "";
+    hideTutorial();
     hideOrientationPrompt();
     startButton.textContent = hasPlayedOnce ? "再来一局" : "开始";
     syncUi();
@@ -286,9 +305,9 @@
 
   function syncUi() {
     uiSyncAccumulator = 0;
-    const isPlayingView = gameState === "playing" || gameState === "gameOver";
+    const isPlayingView = gameState === "playing" || gameState === "tutorial" || gameState === "gameOver";
     homeScreen.classList.toggle("is-hidden", isPlayingView);
-    gameHud.classList.toggle("is-hidden", !isPlayingView);
+    gameHud.classList.toggle("is-hidden", gameState === "home" || gameState === "tutorial");
     clearEntryButton.classList.toggle("is-hidden", isPlayingView);
     heartsText.textContent = "❤️".repeat(Math.max(0, lives));
     statusText.textContent = `存活 ${elapsedTime.toFixed(1)}s`;
@@ -306,11 +325,6 @@
 
   function onKeyDown(event) {
     if (isTextInput(event.target)) return;
-    if (pendingTutorialMode) {
-      event.preventDefault();
-      finishTutorial();
-      return;
-    }
     const key = normalizedKey(event);
     if (!key) return;
     pressedKeys.add(key);
@@ -366,6 +380,12 @@
     }
 
     if (gameState === "home") {
+      return;
+    }
+
+    if (gameState === "tutorial") {
+      updatePlayers(dt);
+      updateTutorialProgress();
       return;
     }
 
@@ -523,7 +543,7 @@
   }
 
   function joystickAreas() {
-    if (gameState !== "playing") return [];
+    if (gameState !== "playing" && gameState !== "tutorial") return [];
     const width = window.innerWidth;
     const height = window.innerHeight;
     const controlWidth = width / 2;
@@ -586,7 +606,9 @@
       enemy.x += Math.cos(enemy.angle) * constants.enemySpeed * dt;
       enemy.y += Math.sin(enemy.angle) * constants.enemySpeed * dt;
 
-      emitParticles(enemy.x, enemy.y, enemy.color, 1);
+      if (Math.random() < constants.enemyTrailParticleChance) {
+        emitParticles(enemy.x, enemy.y, enemy.color, 1);
+      }
 
       return (
         enemy.x >= -50 &&
@@ -620,7 +642,7 @@
 
   function ensureInitialEnemies(width, height) {
     if (didSpawnInitialEnemies || gameState !== "playing" || width <= 0 || height <= 0) return;
-    enemies = Array.from({ length: 6 }, () => makeEnemy(width, height));
+    enemies = Array.from({ length: constants.initialEnemyCount }, () => makeEnemy(width, height));
     didSpawnInitialEnemies = true;
   }
 
@@ -1182,37 +1204,106 @@
   }
 
   function requestGameStart(mode) {
-    if (mode === "normal" && !hasSeenNormalHint) {
-      hasSeenNormalHint = true;
-      showTutorial(mode, "用wasd控制移动，点击空格暂时加速");
-      return;
-    }
-
-    if (mode === "extreme" && !hasSeenExtremeHint) {
-      hasSeenExtremeHint = true;
-      showTutorial(mode, "wasd控制左侧飞碟移动ijkl控制右侧飞碟移动");
-      return;
-    }
-
     beginModeAfterPrompts(mode);
   }
 
-  function showTutorial(mode, message) {
+  function shouldShowTutorial(mode) {
+    return (mode === "normal" && !hasSeenNormalHint) || (mode === "extreme" && !hasSeenExtremeHint);
+  }
+
+  function tutorialMessageForMode(mode) {
+    if (mode === "extreme") {
+      return "使用左下角和右下角摇杆控制两个飞碟移动，摇动两个摇杆各一圈开始游戏";
+    }
+    return "使用右下角摇杆控制飞碟移动，摇动摇杆一圈开始游戏";
+  }
+
+  function showTutorial(mode) {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    if (mode === "normal") {
+      hasSeenNormalHint = true;
+    } else if (mode === "extreme") {
+      hasSeenExtremeHint = true;
+    }
+
+    gameMode = mode;
+    gameState = "tutorial";
+    lives = gameMode === "normal" ? 3 : 6;
+    elapsedTime = 0;
+    nextSpawnTime = nextSpawnInterval(0);
+    nextRayTime = difficulty === "chill" ? 5 : 10;
+    flashRemaining = 0;
+    returnHomeRemaining = 0;
+    stamina = constants.staminaMax;
+    playerOneShielded = false;
+    playerTwoShielded = false;
+    hasRecordedThisGame = false;
+    enemies = [];
+    activeRays = [];
+    particles = [];
+    didSpawnInitialEnemies = false;
+    resetPlayerPositions(width, height);
+    constrainPlayerToGameArea(player);
+    constrainPlayerToGameArea(playerTwo);
+    tutorialProgress = makeTutorialProgress(mode);
     pendingTutorialMode = mode;
-    tutorialMessage.textContent = message;
+    tutorialMessage.textContent = tutorialMessageForMode(mode);
     tutorialModal.classList.remove("is-hidden");
     difficultyPanel.classList.add("is-hidden");
     closeLeaderboard();
     closeClearModal();
     pressedKeys.clear();
+    resetTouchControls();
+    syncUi();
+  }
+
+  function hideTutorial() {
+    tutorialModal.classList.add("is-hidden");
+  }
+
+  function makeTutorialProgress(mode) {
+    const controls = mode === "extreme" ? ["primary", "secondary"] : ["primary"];
+    return Object.fromEntries(
+      controls.map((control) => [
+        control,
+        {
+          up: false,
+          down: false,
+          left: false,
+          right: false
+        }
+      ])
+    );
+  }
+
+  function updateTutorialProgress() {
+    if (!tutorialProgress) return;
+    for (const [control, progress] of Object.entries(tutorialProgress)) {
+      const joystick = touchControls[control];
+      if (!joystick) continue;
+      const threshold = 0.58;
+      if (joystick.directionY <= -threshold) progress.up = true;
+      if (joystick.directionY >= threshold) progress.down = true;
+      if (joystick.directionX <= -threshold) progress.left = true;
+      if (joystick.directionX >= threshold) progress.right = true;
+    }
+
+    const isComplete = Object.values(tutorialProgress).every((progress) =>
+      progress.up && progress.down && progress.left && progress.right
+    );
+    if (isComplete) {
+      finishTutorial();
+    }
   }
 
   function finishTutorial() {
     const mode = pendingTutorialMode;
     pendingTutorialMode = "";
-    tutorialModal.classList.add("is-hidden");
+    tutorialProgress = null;
+    hideTutorial();
     pressedKeys.clear();
-    beginModeAfterPrompts(mode);
+    startGame(mode, { preservePlayerPositions: true });
   }
 
   function beginModeAfterPrompts(mode) {
@@ -1223,6 +1314,10 @@
 
     pendingLandscapeStartMode = "";
     hideOrientationPrompt();
+    if (shouldShowTutorial(mode)) {
+      showTutorial(mode);
+      return;
+    }
     startGame(mode);
   }
 
@@ -1246,7 +1341,7 @@
     const mode = pendingLandscapeStartMode;
     pendingLandscapeStartMode = "";
     hideOrientationPrompt();
-    startGame(mode);
+    beginModeAfterPrompts(mode);
   }
 
   function shouldWaitForLandscape() {
@@ -1288,15 +1383,19 @@
         opacity: random(0.6, 1)
       });
     }
+    trimParticles();
   }
 
   function emitEnemyExpireParticles(x, y, color) {
-    for (let index = 0; index < 56; index += 1) {
+    const radius = enemyRadius();
+    for (let index = 0; index < constants.enemyExpireParticleCount; index += 1) {
       const speed = random(100, 280);
       const angle = random(0, Math.PI * 2);
+      const edgeX = x + Math.cos(angle) * radius;
+      const edgeY = y + Math.sin(angle) * radius;
       particles.push({
-        x,
-        y,
+        x: edgeX,
+        y: edgeY,
         vx: 0,
         vy: 0,
         burstVx: Math.cos(angle) * speed,
@@ -1310,6 +1409,14 @@
         ),
         opacity: random(0.7, 1)
       });
+    }
+    trimParticles();
+  }
+
+  function trimParticles() {
+    const extraCount = particles.length - constants.maxParticles;
+    if (extraCount > 0) {
+      particles.splice(0, extraCount);
     }
   }
 
@@ -1714,12 +1821,6 @@
   }
 
   function onPointerDown(event) {
-    if (pendingTutorialMode && event.target === tutorialModal) {
-      event.preventDefault();
-      finishTutorial();
-      return;
-    }
-
     if (!shouldHandleGamePointer(event)) return;
 
     event.preventDefault();
@@ -1752,7 +1853,7 @@
   }
 
   function onTouchGesture(event) {
-    if (gameState === "playing") {
+    if (gameState === "playing" || gameState === "tutorial") {
       event.preventDefault();
     }
   }
@@ -1763,7 +1864,7 @@
   }
 
   function shouldHandleGamePointer(event) {
-    if (gameState !== "playing" || !["normal", "extreme"].includes(gameMode)) return false;
+    if (!["playing", "tutorial"].includes(gameState) || !["normal", "extreme"].includes(gameMode)) return false;
     if (event.pointerType === "mouse" && event.button !== 0) return false;
     if (isInteractiveTarget(event.target)) return false;
     return true;
@@ -1889,9 +1990,7 @@
   window.addEventListener("touchstart", onTouchGesture, { passive: false });
   window.addEventListener("touchmove", onTouchGesture, { passive: false });
   tutorialModal.addEventListener("click", (event) => {
-    if (pendingTutorialMode && event.target === tutorialModal) {
-      finishTutorial();
-    }
+    if (pendingTutorialMode && event.target === tutorialModal) event.preventDefault();
   });
 
   resizeCanvas();

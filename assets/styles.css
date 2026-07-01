@@ -313,6 +313,21 @@ button {
   text-align: center;
 }
 
+#tutorialModal {
+  align-items: flex-start;
+  padding-top: max(14px, env(safe-area-inset-top));
+  background: transparent;
+  pointer-events: none;
+  backdrop-filter: none;
+}
+
+#tutorialModal .tutorial-panel {
+  width: min(760px, calc(100vw - 28px));
+  padding: 12px 18px 10px;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(245, 245, 247, 0.92);
+}
+
 .tutorial-message {
   margin: 0;
   color: #111;
@@ -481,5 +496,60 @@ button {
 
   .hud-status {
     font-size: 14px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .home-screen {
+    justify-content: center;
+    gap: 10px;
+    padding: max(10px, env(safe-area-inset-top)) 58px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .home-screen h1 {
+    font-size: clamp(22px, 5.5vh, 30px);
+  }
+
+  .home-actions {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    max-width: calc(100vw - 116px);
+  }
+
+  .home-row {
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .danger-button {
+    min-width: 88px;
+    padding: 9px 16px;
+    font-size: clamp(14px, 3.4vh, 17px);
+    white-space: nowrap;
+  }
+
+  .primary-button {
+    min-width: 104px;
+  }
+
+  .corner-menu {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+  }
+
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .tutorial-message {
+    font-size: clamp(16px, 4vh, 20px);
+  }
+
+  .tutorial-hint {
+    margin-top: 6px;
+    font-size: 12px;
   }
 }
