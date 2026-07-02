@@ -20,9 +20,25 @@
       <div class="corner-menu">
         <button class="icon-button" id="difficultyButton" type="button" aria-label="难度设置">☰</button>
         <div class="difficulty-panel is-hidden" id="difficultyPanel">
-          <button class="difficulty-option" data-difficulty="hard" type="button">困难</button>
-          <button class="difficulty-option" data-difficulty="normal" type="button">普通</button>
-          <button class="difficulty-option" data-difficulty="chill" type="button">悠闲</button>
+          <div class="difficulty-header">
+            <span id="difficultyLevelText">难度 5</span>
+          </div>
+          <input class="difficulty-slider" id="difficultySlider" type="range" min="1" max="12" step="1" value="5" aria-label="难度档位">
+          <div class="difficulty-ticks" id="difficultyTicks" aria-label="难度档位">
+            <button class="difficulty-tick" data-level="1" type="button">1</button>
+            <button class="difficulty-tick" data-level="2" type="button">2</button>
+            <button class="difficulty-tick" data-level="3" type="button">3</button>
+            <button class="difficulty-tick" data-level="4" type="button">4</button>
+            <button class="difficulty-tick" data-level="5" type="button">5</button>
+            <button class="difficulty-tick" data-level="6" type="button">6</button>
+            <button class="difficulty-tick" data-level="7" type="button">7</button>
+            <button class="difficulty-tick" data-level="8" type="button">8</button>
+            <button class="difficulty-tick" data-level="9" type="button">9</button>
+            <button class="difficulty-tick" data-level="10" type="button">10</button>
+            <button class="difficulty-tick" data-level="11" type="button">11</button>
+            <button class="difficulty-tick" data-level="12" type="button">12</button>
+          </div>
+          <button class="difficulty-option chill-toggle" id="chillDifficultyButton" type="button">悠闲模式</button>
         </div>
       </div>
 

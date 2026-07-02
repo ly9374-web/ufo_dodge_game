@@ -28,7 +28,10 @@
   const clearModalTitle = document.getElementById("clearModalTitle");
   const difficultyButton = document.getElementById("difficultyButton");
   const difficultyPanel = document.getElementById("difficultyPanel");
-  const difficultyOptions = Array.from(document.querySelectorAll(".difficulty-option"));
+  const difficultyLevelText = document.getElementById("difficultyLevelText");
+  const difficultySlider = document.getElementById("difficultySlider");
+  const difficultyTicks = Array.from(document.querySelectorAll(".difficulty-tick"));
+  const chillDifficultyButton = document.getElementById("chillDifficultyButton");
   const tutorialModal = document.getElementById("tutorialModal");
   const tutorialMessage = document.getElementById("tutorialMessage");
   const orientationModal = document.getElementById("orientationModal");
@@ -72,6 +75,12 @@
     // 手动调参：困难极难模式陨石生成间隔。数字越大陨石越少，越小陨石越密。
     hardExtremeEnemyMinInterval: 1.5,
     hardExtremeEnemyMaxInterval: 1.65,
+    // 手动调参：难度档位。5 档等于旧普通，10 档等于旧困难；difficultyStep 越大档位差距越大。
+    defaultDifficultyLevel: 5,
+    minDifficultyLevel: 1,
+    maxDifficultyLevel: 12,
+    hardReferenceDifficultyLevel: 10,
+    difficultyStep: 0.1,
     // 手动调参：悠闲模式陨石生成间隔。数字越大陨石越少，越小陨石越密。
     chillEnemyInterval: 0.8,
     chillExtremeEnemyInterval: 1.6,
@@ -122,13 +131,11 @@
     return Math.max(1, scaledSize(constants.baseShieldLineWidth));
   }
 
-  const difficultyLabels = {
-    hard: "困难",
-    normal: "普通",
-    chill: "悠闲"
+  const legacyDifficultyLevels = {
+    hard: { level: 10, chill: false },
+    normal: { level: 5, chill: false },
+    chill: { level: 5, chill: true }
   };
-
-  const difficultyOrder = ["hard", "normal", "chill"];
 
   const gameModeLabels = {
     normal: "普通模式",
@@ -136,6 +143,58 @@
   };
 
   const gameModeOrder = ["normal", "extreme"];
+
+  function clampDifficultyLevel(level) {
+    return clamp(
+      Math.round(Number(level) || constants.defaultDifficultyLevel),
+      constants.minDifficultyLevel,
+      constants.maxDifficultyLevel
+    );
+  }
+
+  function difficultyMultiplier() {
+    return Math.max(
+      0.1,
+      1 + (constants.hardReferenceDifficultyLevel - difficultyLevel) * constants.difficultyStep
+    );
+  }
+
+  function currentDifficultyKey() {
+    return `${isChillDifficulty ? "chill" : "standard"}-${difficultyLevel}`;
+  }
+
+  function difficultyLabelFromParts(level = difficultyLevel, chill = isChillDifficulty) {
+    return `${chill ? "悠闲" : "难度"} ${level}档`;
+  }
+
+  function difficultyLabelFromKey(key) {
+    const parsed = parseDifficultyKey(key);
+    return difficultyLabelFromParts(parsed.level, parsed.chill);
+  }
+
+  function parseDifficultyKey(key) {
+    if (legacyDifficultyLevels[key]) return legacyDifficultyLevels[key];
+
+    const match = /^(standard|chill)-(\d+)$/.exec(String(key || ""));
+    if (!match) {
+      return { level: constants.defaultDifficultyLevel, chill: false };
+    }
+
+    return {
+      level: clampDifficultyLevel(match[2]),
+      chill: match[1] === "chill"
+    };
+  }
+
+  function difficultyKeys() {
+    const keys = [];
+    for (const chill of [false, true]) {
+      for (let level = constants.minDifficultyLevel; level <= constants.maxDifficultyLevel; level += 1) {
+        keys.push(`${chill ? "chill" : "standard"}-${level}`);
+      }
+    }
+    return keys;
+  }
 
   const pressedKeys = new Set();
   const boostPointers = new Set();
@@ -189,7 +248,8 @@
   let hasPlayedOnce = false;
   let didPlacePlayer = false;
   let didSpawnInitialEnemies = false;
-  let difficulty = "normal";
+  let difficultyLevel = constants.defaultDifficultyLevel;
+  let isChillDifficulty = false;
   let leaderboard = loadLeaderboard();
   let editingEntryId = "";
   let hasRecordedThisGame = false;
@@ -203,10 +263,70 @@
     return image;
   }
 
+  function viewportFromWindow(sourceWindow) {
+    if (!sourceWindow) return null;
+
+    const sourceDocument = sourceWindow.document;
+    const documentElement = sourceDocument && sourceDocument.documentElement;
+    const candidates = [
+      sourceWindow.visualViewport && {
+        width: sourceWindow.visualViewport.width,
+        height: sourceWindow.visualViewport.height
+      },
+      documentElement && {
+        width: documentElement.clientWidth,
+        height: documentElement.clientHeight
+      },
+      {
+        width: sourceWindow.innerWidth,
+        height: sourceWindow.innerHeight
+      }
+    ];
+
+    return candidates.find((size) => size && size.width > 0 && size.height > 0) || null;
+  }
+
+  function parentViewportSize() {
+    try {
+      if (window.parent && window.parent !== window) {
+        return viewportFromWindow(window.parent);
+      }
+    } catch (error) {
+      return null;
+    }
+    return null;
+  }
+
+  function getViewportSize() {
+    const parentSize = parentViewportSize();
+    const localSize = viewportFromWindow(window);
+    const size = parentSize || localSize || { width: 320, height: 320 };
+
+    return {
+      width: Math.max(320, Math.round(size.width)),
+      height: Math.max(320, Math.round(size.height))
+    };
+  }
+
+  function isLandscapeViewport() {
+    const orientation = window.screen && window.screen.orientation;
+    if (orientation && typeof orientation.angle === "number" && Math.abs(orientation.angle) % 180 === 90) {
+      return true;
+    }
+
+    const { width, height } = getViewportSize();
+    return width >= height;
+  }
+
+  function syncGameViewportStyle(width, height) {
+    document.documentElement.style.setProperty("--game-width", `${width}px`);
+    document.documentElement.style.setProperty("--game-height", `${height}px`);
+  }
+
   function resizeCanvas() {
     const dpr = Math.min(constants.maxCanvasDpr, Math.max(1, window.devicePixelRatio || 1));
-    const width = Math.max(320, window.innerWidth);
-    const height = Math.max(320, window.innerHeight);
+    const { width, height } = getViewportSize();
+    syncGameViewportStyle(width, height);
 
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
@@ -255,8 +375,7 @@
   function startGame(mode, options = {}) {
     const preservePlayerPositions = Boolean(options.preservePlayerPositions);
     const preserveTouchControls = Boolean(options.preserveTouchControls);
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const { width, height } = getViewportSize();
 
     closeLeaderboard();
     closeClearModal();
@@ -268,7 +387,7 @@
     lives = gameMode === "normal" ? 3 : 6;
     elapsedTime = 0;
     nextSpawnTime = nextSpawnInterval(0);
-    nextRayTime = difficulty === "chill" ? 5 : 10;
+    nextRayTime = isChillDifficulty ? 5 : 10;
     flashRemaining = 0;
     returnHomeRemaining = 0;
     stamina = constants.staminaMax;
@@ -421,7 +540,7 @@
   }
 
   function updateRecordDelta() {
-    const best = topLeaderboardDuration(gameMode, difficulty);
+    const best = topLeaderboardDuration(gameMode, currentDifficultyKey());
     const shouldShow = (gameState === "playing" || gameState === "gameOver") && Number.isFinite(best);
     recordDeltaText.classList.toggle("is-hidden", !shouldShow);
     if (!shouldShow) return;
@@ -536,14 +655,14 @@
 
   function constrainPlayerToGameArea(target) {
     const radius = playerRadius();
-    target.x = clamp(target.x, radius, window.innerWidth - radius);
-    target.y = clamp(target.y, radius, window.innerHeight - radius);
+    const { width, height } = getViewportSize();
+    target.x = clamp(target.x, radius, width - radius);
+    target.y = clamp(target.y, radius, height - radius);
   }
 
   function joystickAreas() {
     if (gameState !== "playing" && gameState !== "tutorial") return [];
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const { width, height } = getViewportSize();
     const controlWidth = width / 2;
     const controlHeight = 1.2 * controlWidth;
     const controlY = height - controlHeight;
@@ -593,6 +712,7 @@
 
   function updateEnemies(dt) {
     const turnLimit = 0.02 * (dt * 60);
+    const { width, height } = getViewportSize();
     enemies = enemies.filter((enemy) => {
       enemy.lifeRemaining -= dt;
       if (enemy.lifeRemaining <= 0) {
@@ -615,8 +735,8 @@
       return (
         enemy.x >= -50 &&
         enemy.y >= -50 &&
-        enemy.x <= window.innerWidth + 50 &&
-        enemy.y <= window.innerHeight + 50
+        enemy.x <= width + 50 &&
+        enemy.y <= height + 50
       );
     });
   }
@@ -650,13 +770,16 @@
 
   function spawnEnemiesIfNeeded() {
     if (elapsedTime < nextSpawnTime) return;
-    enemies.push(makeEnemy(window.innerWidth, window.innerHeight));
+    const { width, height } = getViewportSize();
+    enemies.push(makeEnemy(width, height));
     nextSpawnTime = elapsedTime + nextSpawnInterval(elapsedTime);
   }
 
   function nextSpawnInterval(time) {
-    if (difficulty === "chill") {
-      return gameMode === "extreme" ? constants.chillExtremeEnemyInterval : constants.chillEnemyInterval;
+    const multiplier = difficultyMultiplier();
+    if (isChillDifficulty) {
+      const interval = gameMode === "extreme" ? constants.chillExtremeEnemyInterval : constants.chillEnemyInterval;
+      return interval * multiplier;
     }
 
     const isExtreme = gameMode === "extreme";
@@ -667,7 +790,6 @@
     const maxInterval = isExtreme
       ? Math.max(minInterval + 0.15, constants.hardExtremeEnemyMaxInterval - 0.5 * steps)
       : Math.max(minInterval + 0.1, constants.hardEnemyMaxInterval - 0.03 * steps);
-    const multiplier = difficulty === "normal" ? 1.5 : 1;
     return random(minInterval * multiplier, maxInterval * multiplier);
   }
 
@@ -713,7 +835,7 @@
 
   function updateRays(dt) {
     const beamDuration = 0.35;
-    const rayStartTime = difficulty === "chill" ? 5 : 10;
+    const rayStartTime = isChillDifficulty ? 5 : 10;
 
     activeRays = activeRays.filter((ray) => {
       if (ray.phase === "telegraph") {
@@ -743,12 +865,13 @@
       gameState === "playing" &&
       elapsedTime >= nextRayTime &&
       elapsedTime >= rayStartTime &&
-      window.innerWidth > 0 &&
-      window.innerHeight > 0
+      getViewportSize().width > 0 &&
+      getViewportSize().height > 0
     ) {
-      const rayCount = difficulty === "chill" ? 2 : Math.min(3, Math.max(1, Math.floor(elapsedTime / 10)));
+      const { width, height } = getViewportSize();
+      const rayCount = isChillDifficulty ? 2 : Math.min(3, Math.max(1, Math.floor(elapsedTime / 10)));
       for (let index = 0; index < rayCount; index += 1) {
-        activeRays.push(makeRay(window.innerWidth, window.innerHeight));
+        activeRays.push(makeRay(width, height));
       }
       nextRayTime = elapsedTime + nextRayInterval(elapsedTime);
     }
@@ -782,14 +905,16 @@
   }
 
   function nextRayInterval(time) {
-    if (difficulty === "chill") {
-      return gameMode === "extreme" ? constants.hardExtremeRayInterval : constants.hardNormalRayInterval;
+    const multiplier = difficultyMultiplier();
+    if (isChillDifficulty) {
+      const interval = gameMode === "extreme" ? constants.hardExtremeRayInterval : constants.hardNormalRayInterval;
+      return interval * multiplier;
     }
 
     const timeAfterStart = Math.max(0, time - 10);
     const baseInterval = Math.max(0.5, 2.5 - timeAfterStart * 0.05);
     const modeInterval = gameMode === "extreme" ? baseInterval * 1.4 : baseInterval;
-    return difficulty === "normal" ? modeInterval * 1.5 : modeInterval;
+    return modeInterval * multiplier;
   }
 
   function centerRegion(width, height) {
@@ -975,7 +1100,7 @@
       name: "未命名",
       duration: elapsedTime,
       mode: gameMode,
-      difficulty,
+      difficulty: currentDifficultyKey(),
       isNamed: false,
       createdAt: Date.now()
     });
@@ -996,7 +1121,7 @@
           name: String(entry.name || "未命名"),
           duration: entry.duration,
           mode: gameModeOrder.includes(entry.mode) ? entry.mode : "normal",
-          difficulty: difficultyOrder.includes(entry.difficulty) ? entry.difficulty : "hard",
+          difficulty: normalizeLeaderboardDifficulty(entry.difficulty),
           isNamed: Boolean(entry.isNamed),
           createdAt: Number(entry.createdAt || Date.now())
         }));
@@ -1013,9 +1138,14 @@
     }
   }
 
+  function normalizeLeaderboardDifficulty(value) {
+    const parsed = parseDifficultyKey(value);
+    return `${parsed.chill ? "chill" : "standard"}-${parsed.level}`;
+  }
+
   function trimLeaderboard() {
     const trimmed = [];
-    for (const item of difficultyOrder) {
+    for (const item of difficultyKeys()) {
       for (const mode of gameModeOrder) {
         trimmed.push(...leaderboardEntries(mode, item));
       }
@@ -1023,14 +1153,14 @@
     leaderboard = trimmed;
   }
 
-  function leaderboardEntries(mode, item = difficulty) {
+  function leaderboardEntries(mode, item = currentDifficultyKey()) {
     return leaderboard
       .filter((entry) => entry.mode === mode && entry.difficulty === item)
       .sort((left, right) => right.duration - left.duration)
       .slice(0, 3);
   }
 
-  function topLeaderboardDuration(mode = gameMode, item = difficulty) {
+  function topLeaderboardDuration(mode = gameMode, item = currentDifficultyKey()) {
     const entries = leaderboardEntries(mode, item);
     return entries.length > 0 ? entries[0].duration : NaN;
   }
@@ -1090,7 +1220,9 @@
   }
 
   function renderLeaderboard() {
-    leaderboardTitle.textContent = `排行榜（${difficultyLabels[difficulty]}）`;
+    const key = currentDifficultyKey();
+    const label = difficultyLabelFromKey(key);
+    leaderboardTitle.textContent = `排行榜（${label}）`;
     leaderboardList.replaceChildren();
 
     for (const mode of gameModeOrder) {
@@ -1103,16 +1235,14 @@
       const title = document.createElement("span");
       title.textContent = gameModeLabels[mode];
 
-      const best = topLeaderboardDuration(mode, difficulty);
+      const best = topLeaderboardDuration(mode, key);
       const bestText = document.createElement("span");
-      bestText.textContent = Number.isFinite(best)
-        ? `${difficultyLabels[difficulty]} 最高 ${best.toFixed(1)}s`
-        : difficultyLabels[difficulty];
+      bestText.textContent = Number.isFinite(best) ? `${label} 最高 ${best.toFixed(1)}s` : label;
 
       header.append(title, bestText);
       section.append(header);
 
-      const entries = leaderboardEntries(mode, difficulty);
+      const entries = leaderboardEntries(mode, key);
       if (entries.length === 0) {
         const empty = document.createElement("div");
         empty.className = "empty-row";
@@ -1198,10 +1328,13 @@
     renderLeaderboard();
   }
 
-  function setDifficulty(nextDifficulty) {
-    if (!difficultyOrder.includes(nextDifficulty)) return;
-    difficulty = nextDifficulty;
-    difficultyPanel.classList.add("is-hidden");
+  function setDifficultyLevel(nextLevel) {
+    difficultyLevel = clampDifficultyLevel(nextLevel);
+    syncUi();
+  }
+
+  function toggleChillDifficulty() {
+    isChillDifficulty = !isChillDifficulty;
     syncUi();
   }
 
@@ -1221,14 +1354,13 @@
   }
 
   function showTutorial(mode) {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const { width, height } = getViewportSize();
     gameMode = mode;
     gameState = "tutorial";
     lives = gameMode === "normal" ? 3 : 6;
     elapsedTime = 0;
     nextSpawnTime = nextSpawnInterval(0);
-    nextRayTime = difficulty === "chill" ? 5 : 10;
+    nextRayTime = isChillDifficulty ? 5 : 10;
     flashRemaining = 0;
     returnHomeRemaining = 0;
     stamina = constants.staminaMax;
@@ -1276,13 +1408,12 @@
   function updateTutorialProgress() {
     if (!tutorialProgress) return;
     for (const [control, progress] of Object.entries(tutorialProgress)) {
-      const joystick = touchControls[control];
-      if (!joystick) continue;
-      const threshold = 0.58;
-      if (joystick.directionY <= -threshold) progress.up = true;
-      if (joystick.directionY >= threshold) progress.down = true;
-      if (joystick.directionX <= -threshold) progress.left = true;
-      if (joystick.directionX >= threshold) progress.right = true;
+      const direction = movementDirection(control);
+      const threshold = 0.1;
+      if (direction.y <= -threshold) progress.up = true;
+      if (direction.y >= threshold) progress.down = true;
+      if (direction.x <= -threshold) progress.left = true;
+      if (direction.x >= threshold) progress.right = true;
     }
 
     const isComplete = Object.values(tutorialProgress).every((progress) =>
@@ -1340,7 +1471,7 @@
   }
 
   function shouldWaitForLandscape() {
-    return isLikelyTouchDevice() && window.innerHeight > window.innerWidth;
+    return isLikelyTouchDevice() && !isLandscapeViewport();
   }
 
   function isLikelyTouchDevice() {
@@ -1348,8 +1479,11 @@
   }
 
   function syncDifficultyOptions() {
-    for (const option of difficultyOptions) {
-      option.classList.toggle("is-active", option.dataset.difficulty === difficulty);
+    difficultyLevelText.textContent = difficultyLabelFromParts();
+    difficultySlider.value = String(difficultyLevel);
+    chillDifficultyButton.classList.toggle("is-active", isChillDifficulty);
+    for (const tick of difficultyTicks) {
+      tick.classList.toggle("is-active", Number(tick.dataset.level) === difficultyLevel);
     }
   }
 
@@ -1416,8 +1550,7 @@
   }
 
   function draw() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    const { width, height } = getViewportSize();
 
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = "#000";
@@ -1845,6 +1978,23 @@
     maybeStartPendingLandscapeMode();
   }
 
+  function scheduleViewportChange() {
+    onViewportChange();
+    [120, 300, 700].forEach((delay) => {
+      window.setTimeout(onViewportChange, delay);
+    });
+  }
+
+  function addViewportListeners(sourceWindow) {
+    if (!sourceWindow) return;
+    sourceWindow.addEventListener("resize", scheduleViewportChange);
+    sourceWindow.addEventListener("orientationchange", scheduleViewportChange);
+    if (sourceWindow.visualViewport) {
+      sourceWindow.visualViewport.addEventListener("resize", scheduleViewportChange);
+      sourceWindow.visualViewport.addEventListener("scroll", scheduleViewportChange);
+    }
+  }
+
   function shouldHandleGamePointer(event) {
     if (!["playing", "tutorial"].includes(gameState) || !["normal", "extreme"].includes(gameMode)) return false;
     if (event.pointerType === "mouse" && event.button !== 0) return false;
@@ -1950,18 +2100,28 @@
   difficultyButton.addEventListener("click", () => {
     difficultyPanel.classList.toggle("is-hidden");
   });
-  for (const option of difficultyOptions) {
-    option.addEventListener("click", () => {
-      setDifficulty(option.dataset.difficulty);
+  difficultySlider.addEventListener("input", () => {
+    setDifficultyLevel(difficultySlider.value);
+  });
+  for (const tick of difficultyTicks) {
+    tick.addEventListener("click", () => {
+      setDifficultyLevel(tick.dataset.level);
     });
   }
+  chillDifficultyButton.addEventListener("click", toggleChillDifficulty);
   window.addEventListener("click", (event) => {
     if (!difficultyPanel.contains(event.target) && event.target !== difficultyButton) {
       difficultyPanel.classList.add("is-hidden");
     }
   });
-  window.addEventListener("resize", onViewportChange);
-  window.addEventListener("orientationchange", onViewportChange);
+  addViewportListeners(window);
+  try {
+    if (window.parent && window.parent !== window) {
+      addViewportListeners(window.parent);
+    }
+  } catch (error) {
+    // Cross-origin embeds cannot read the parent viewport, so local listeners are used.
+  }
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("pointerdown", onPointerDown, { passive: false });

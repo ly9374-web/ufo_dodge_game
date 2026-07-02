@@ -90,7 +90,9 @@ def main() -> None:
           iframe {
             display: block;
             width: 100%;
-            height: calc(100svh - 16px) !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            height: calc(100dvh - env(safe-area-inset-bottom)) !important;
             min-height: 0;
             border: 0;
           }
@@ -99,7 +101,7 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    components.html(build_game_html(), height=1, scrolling=False)
+    components.html(build_game_html(), height=900, scrolling=False)
 
 
 if __name__ == "__main__":
