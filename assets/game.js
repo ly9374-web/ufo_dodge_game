@@ -153,9 +153,10 @@
   }
 
   function difficultyMultiplier() {
+    const referenceLevel = isChillDifficulty ? 8 : constants.hardReferenceDifficultyLevel;
     return Math.max(
       0.1,
-      1 + (constants.hardReferenceDifficultyLevel - difficultyLevel) * constants.difficultyStep
+      1 + (referenceLevel - difficultyLevel) * constants.difficultyStep
     );
   }
 
@@ -702,6 +703,28 @@
     }
 
     return [];
+  }
+
+  function joystickHitAreas() {
+    if (gameMode !== "extreme") return joystickAreas();
+
+    const { width, height } = getViewportSize();
+    return [
+      {
+        id: "primary",
+        x: 0,
+        y: 0,
+        width: width / 2,
+        height
+      },
+      {
+        id: "secondary",
+        x: width / 2,
+        y: 0,
+        width: width / 2,
+        height
+      }
+    ];
   }
 
   function updateStars(dt) {
@@ -1871,8 +1894,10 @@
   }
 
   function drawJoystickArea(area) {
-    const center = joystickCenter(area);
     const joystick = touchControls[area.id];
+    const center = joystick.active
+      ? { x: joystick.startX, y: joystick.startY }
+      : joystickCenter(area);
     const knob = joystick.active
       ? limitedJoystickPoint(joystick.startX, joystick.startY, joystick.currentX, joystick.currentY)
       : center;
@@ -2022,7 +2047,7 @@
   }
 
   function joystickAreaAt(x, y) {
-    return joystickAreas().find((area) => pointInRect(x, y, area)) || null;
+    return joystickHitAreas().find((area) => pointInRect(x, y, area)) || null;
   }
 
   function joystickForPointer(pointerId) {
@@ -2033,9 +2058,8 @@
     const joystick = touchControls[area.id];
     joystick.active = true;
     joystick.pointerId = pointerId;
-    const center = joystickCenter(area);
-    joystick.startX = center.x;
-    joystick.startY = center.y;
+    joystick.startX = x;
+    joystick.startY = y;
     updateJoystick(joystick, x, y);
   }
 
