@@ -21,11 +21,14 @@ body {
 }
 
 body {
+  position: fixed;
+  inset: 0;
   min-width: 320px;
 }
 
 .game-shell {
-  position: relative;
+  position: fixed;
+  inset: 0;
   width: 100vw;
   width: var(--game-width, 100vw);
   height: 100vh;

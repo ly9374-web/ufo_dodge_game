@@ -87,12 +87,12 @@ def main() -> None:
             padding: 0;
           }
 
+          div[data-testid="stElementContainer"]:has(iframe),
           iframe {
             display: block;
             width: 100%;
             height: 100vh !important;
             height: 100dvh !important;
-            height: calc(100dvh - env(safe-area-inset-bottom)) !important;
             min-height: 0;
             border: 0;
           }
